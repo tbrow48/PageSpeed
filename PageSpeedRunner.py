@@ -1,156 +1,176 @@
 import json
-import os
-import sys
 import requests
-import urllib.parse
-import time
 import pandas as pd
 from datetime import datetime
-#Built by Omi Brown: omiete98@yahoo.com
-#API Key and i is used to change betwen desktop and mobile
-api_key = "INSERT API KEY"
-i = 0
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import threading
 
+# API Key
+api_key = "AIzaSyCzd4hGQ3B0uKtZVpoebtN0Kqf14CkTrMo"
 
-#this while loop helps run the desktop runs immdediately after getting the mobile runs
-while i < 2:
-#naming of the files and creation of a data frame, it takes what the name is and the current date
-    if i == 0:
-        df_mobile= pd.DataFrame([], columns=['URL','Mobile Performance','Accessibility','Best Practices', 'SEO','Server Response Time (ms)', 'Redirects (ms)', 'Offscreen Images (ms)','Unused Javascript (ms)','Uses Optimized Images (ms)'])
-        name = "INSERT MOBILE FILE NAME" 
-        getdate = datetime.now().strftime("%m-%d-%y-%H-%M")
-    else:
-        df_desktop= pd.DataFrame([], columns=['URL','Desktop Performance','Accessibility','Best Practices','SEO','Server Response Time (ms)', 'Redirects (ms)', 'Offscreen Images (ms)','Unused Javascript (ms)','Uses Optimized Images (ms)'])
-        name = "INSERT DESKTOP FILE NAME"
-        getdate = datetime.now().strftime("%m-%d-%y-%H-%M")
+# Tkinter Input Handling (Main Thread Only)
+def get_user_inputs():
+    root = tk.Tk()
+    root.withdraw()
 
-#Opening and reading the URLs from a .txt file
-    with open('INSER FILE PATH/urls.txt') as pagespeedurls:
+    # Prompt for .txt file with URLs
+    messagebox.showinfo("Select the .txt", "Please select the .txt file with URLs")
+    file_path = filedialog.askopenfilename(filetypes=[("txt files", "*.txt")])
+    if not file_path:
+        print("No file selected. Exiting program.")
+        sys.exit()
+
+    # Prompt for mobile CSV directory
+    messagebox.showinfo("Select Mobile CSV Directory", "Please select the directory to save the mobile CSV file")
+    mobile_csv_directory = filedialog.askdirectory()
+    if not mobile_csv_directory:
+        print("No mobile directory selected. Exiting program.")
+        sys.exit()
+
+    # Prompt for desktop CSV directory
+    messagebox.showinfo("Select Desktop CSV Directory", "Please select the directory to save the desktop CSV file")
+    desktop_csv_directory = filedialog.askdirectory()
+    if not desktop_csv_directory:
+        print("No desktop directory selected. Exiting program.")
+        sys.exit()
+
+    return file_path, mobile_csv_directory, desktop_csv_directory
+
+# Worker Function for Mobile Processing
+def process_mobile(file_path, mobile_csv_directory):
+    df_mobile = pd.DataFrame([], columns=['URL', 'Mobile Performance', 'Accessibility', 'Best Practices', 'SEO','Server Response Time (ms)', 'Redirects (ms)',
+                                          'Offscreen Images (ms)', 'Unused Javascript (ms)', 'Uses Optimized Images (ms)'])
+    name = "MobilePageSpeed"
+    getdate = datetime.now().strftime("%m-%d-%y-%H-%M")
+
+    with open(file_path) as pagespeedurls:
         content = pagespeedurls.readlines()
         content = [line.rstrip('\n') for line in content]
-#For every URL in the .txt file we will run this bit of code
+
     for line in content:
-        #Stripping the url of it's www. components and accounts for if the url doesn't have www. within it
-        if "www." in line:
-            filename = line.replace('https://www.','').split(".com")
-        else:
-            filename = line.replace('https://','').split(".com")
-        #If i is 0 then we are running for Mobile
-        if i == 0:
-            try:
-                print("Running Mobile for " + line)
-                api_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
-                params = {"url": line, "key": api_key,'strategy':'mobile','category':['performance','seo','best-practices','accessibility']}
-                req = requests.get(api_url, params=params)
-                #We are running a request from the pagespeed api, the code 200 means it's successful so we continue
-                if (req.status_code == 200):
-                    json_data = json.loads(req.text)
-                    json_filenamemobile = 'INSERT FILE PATH FOR MOBILE JSONs' + name + filename[0] + '_' + getdate + '.report.json'
-                    #Build a JSON file for URL and channel
-                    with open(json_filenamemobile, "w") as outfile:
-                        json.dump(json_data, outfile)
-                    print("Mobile Report complete for: " + line)
-                    with open(json_filenamemobile) as json_data_mobile:
-                        loaded_json_mobile = json.load(json_data_mobile)
-                    performance = str(round(loaded_json_mobile["lighthouseResult"]["categories"]["performance"]["score"] * 100))
-                    accessibility = str(round(loaded_json_mobile["lighthouseResult"]["categories"]["accessibility"]["score"] * 100))
-                    best_practices = str(round(loaded_json_mobile["lighthouseResult"]["categories"]["best-practices"]["score"] * 100))
-                    seo = str(round(loaded_json_mobile["lighthouseResult"]["categories"]["seo"]["score"] * 100))
-                    server_response = str(loaded_json_mobile["lighthouseResult"]["audits"]["server-response-time"]["numericValue"])
-                    redirects = str(loaded_json_mobile["lighthouseResult"]["audits"]["redirects"]["numericValue"])
-                    offscreen_images = str(loaded_json_mobile["lighthouseResult"]["audits"]["offscreen-images"]["numericValue"])
-                    unused_javascript = str(loaded_json_mobile["lighthouseResult"]["audits"]["unused-javascript"]["numericValue"])
-                    use_optimized_images = str(loaded_json_mobile["lighthouseResult"]["audits"]["uses-optimized-images"]["numericValue"])
-                    dict_mobile = {"URL":line,"Mobile Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
-                    df_mobile = df_mobile._append(dict_mobile, ignore_index=True)
-                    print("Data added to Mobile DataFrame")
-                #In the event the PageSpeed Insight API doesn't return a succesful status code, we will show the url and error code and fill data frame with null for values
-                else:
-                    print("PageSpeed Insights failed to successfully run the mobile webpage URL: " + line + "\nError Code: " + str(req.status_code))
-                    performance = "null"
-                    accessibility = "null"
-                    best_practices = "null"
-                    seo = "null"
-                    server_response = "null"
-                    redirects = "null"
-                    offscreen_images = "null"
-                    unused_javascript = "null"
-                    use_optimized_images = "null" 
-                    dict_mobile = {"URL":line,"Mobile Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
-                    df_mobile = df_mobile._append(dict_mobile, ignore_index=True)
-            #In the event of a Runtime or Type Error we want the script to continue running but place a null for all values and the url attempted
-            except RuntimeError or TypeError or KeyError:
-                performance = "null"
-                accessibility = "null"
-                best_practices = "null"
-                seo = "null"
-                server_response = "null"
-                redirects = "null"
-                offscreen_images = "null"
-                unused_javascript = "null"
-                use_optimized_images = "null"
-                dict_mobile = {"URL":line,"Mobile Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
+        try:
+            print(f"Running Mobile for {line}")
+            api_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+            params = {
+                "url": line,
+                "key": api_key,
+                "strategy": "mobile",
+                "category": ['performance','seo','best-practices','accessibility']
+            }
+            req = requests.get(api_url, params=params)
+
+            if req.status_code == 200:
+                json_data = req.json()
+
+                # Extract relevant metrics
+                performance = str(round(json_data["lighthouseResult"]["categories"]["performance"]["score"] * 100))
+                accessibility = str(round(json_data["lighthouseResult"]["categories"]["accessibility"]["score"] * 100))
+                best_practices = str(round(json_data["lighthouseResult"]["categories"]["best-practices"]["score"] * 100))
+                seo = str(round(json_data["lighthouseResult"]["categories"]["seo"]["score"] * 100))
+                server_response = str(json_data["lighthouseResult"]["audits"]["server-response-time"]["numericValue"])
+                redirects = str(json_data["lighthouseResult"]["audits"]["redirects"]["numericValue"])
+                offscreen_images = str(json_data["lighthouseResult"]["audits"]["offscreen-images"]["numericValue"])
+                unused_javascript = str(json_data["lighthouseResult"]["audits"]["unused-javascript"]["numericValue"])
+                use_optimized_images = str(json_data["lighthouseResult"]["audits"]["uses-optimized-images"]["numericValue"])
+
+                # Add data to the DataFrame
+                dict_mobile = {
+                    "URL": line,
+                    "Mobile Performance": performance,
+                    "Accessibility": accessibility,
+                    "Best Practices": best_practices,
+                    "SEO": seo,
+                    "Server Response Time (ms)": server_response,
+                    "Redirects (ms)": redirects,
+                    "Offscreen Images (ms)": offscreen_images,
+                    "Unused Javascript (ms)": unused_javascript,
+                    "Uses Optimized Images (ms)": use_optimized_images
+                }
                 df_mobile = df_mobile._append(dict_mobile, ignore_index=True)
-                continue            
-        else:
-            #This is the exact same code for except we are now running for desktop
-            try:
-                print("Running Desktop for " + line)
-                api_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
-                params = {"url": line, "key": api_key, "strategy": "desktop","category":["performance","accessibility","best_practices","seo"]}
-                req = requests.get(api_url, params=params)
-                if (req.status_code == 200):
-                    json_data = json.loads(req.text)
-                    json_filenamedesktop = 'INSERT FILE PATH FOR DESKTOP JSONS' + name + filename[0] + '_' + getdate + '.report.json'
-                    with open(json_filenamedesktop, "w") as outfile:
-                        json.dump(json_data, outfile)
-                    print("Desktop Report complete for: " + line)
-                    with open(json_filenamedesktop) as json_data_desktop:
-                        loaded_json_desktop = json.load(json_data_desktop)
-                    performance = str(round(loaded_json_desktop["lighthouseResult"]["categories"]["performance"]["score"] * 100))
-                    accessibility = str(round(loaded_json_desktop["lighthouseResult"]["categories"]["accessibility"]["score"] * 100))
-                    best_practices = str(round(loaded_json_desktop["lighthouseResult"]["categories"]["best-practices"]["score"] * 100))
-                    seo = str(round(loaded_json_desktop["lighthouseResult"]["categories"]["seo"]["score"] * 100))
-                    server_response = str(loaded_json_desktop["lighthouseResult"]["audits"]["server-response-time"]["numericValue"])
-                    redirects = str(loaded_json_desktop["lighthouseResult"]["audits"]["redirects"]["numericValue"])
-                    offscreen_images = str(loaded_json_desktop["lighthouseResult"]["audits"]["offscreen-images"]["numericValue"])
-                    unused_javascript = str(loaded_json_desktop["lighthouseResult"]["audits"]["unused-javascript"]["numericValue"])
-                    use_optimized_images = str(loaded_json_desktop["lighthouseResult"]["audits"]["uses-optimized-images"]["numericValue"])
-                    dict_desktop = {"URL":line,"Desktop Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
-                    df_desktop = df_desktop._append(dict_desktop, ignore_index=True)
-                    print("Data added to CSV")
-                else:
-                    print("PageSpeed Insights failed to successfully run the desktop webpage URL: " + line + "\nError Code: " + str(req.status_code))
-                    performance = "null"
-                    accessibility = "null"
-                    best_practices = "null"
-                    seo = "null"
-                    server_response = "null"
-                    redirects = "null"
-                    offscreen_images = "null"
-                    unused_javascript = "null"
-                    use_optimized_images = "null"
-                    dict_desktop = {"URL":line,"Desktop Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
-                    df_desktop = df_desktop._append(dict_desktop, ignore_index=True)           
-            except RuntimeError or TypeError or KeyError:
-                performance = "null"
-                accessibility = "null"
-                best_practices = "null"
-                seo = "null"
-                server_response = "null"
-                redirects = "null"
-                offscreen_images = "null"
-                unused_javascript = "null"
-                use_optimized_images = "null"
-                dict_desktop = {"URL":line,"Desktop Performance":performance, "Accessibility":accessibility, "Best Practices":best_practices,"SEO":seo, "Server Response Time (ms)":server_response, "Redirects (ms)":redirects, "Offscreen Images (ms)":offscreen_images,"Unused Javascript (ms)":unused_javascript,"Uses Optimized Images (ms)":use_optimized_images}
-                df_desktop = df_desktop._append(dict_desktop, ignore_index=True)   
-                continue 
-    #Saves the data frame with all runs as a CSV for later viewing           
-    if i == 0:
-        df_mobile.to_csv('INSERT FILE PATH FOR MOBILE CSVs' + name + '_' + getdate + '.csv')
-        print("All mobile data saved to a .CSV")
-    else:
-        df_desktop.to_csv('INSERT FILE PATH FOR DESKTOP CSVs' + name + '_' + getdate + '.csv')
-        print("All desktop data saved to a .CSV")
-    i+=1
-print("All done, for all URLs")
+            else:
+                print(f"Error {req.status_code} for {line}: {req.reason}")
+
+        except Exception as e:
+            print(f"Error processing mobile for {line}: {e}")
+            continue
+
+    df_mobile.to_csv(f"{mobile_csv_directory}/{name}_{getdate}.csv", index=False)
+    print("All mobile data saved to CSV.")
+
+# Worker Function for Desktop Processing
+def process_desktop(file_path, desktop_csv_directory):
+    df_desktop = pd.DataFrame([], columns=['URL', 'Desktop Performance', 'Accessibility', 'Best Practices', 'SEO', 'Server Response Time (ms)', 'Redirects (ms)',
+                                           'Offscreen Images (ms)', 'Unused Javascript (ms)', 'Uses Optimized Images (ms)'])
+    name = "DesktopPageSpeed"
+    getdate = datetime.now().strftime("%m-%d-%y-%H-%M")
+
+    with open(file_path) as pagespeedurls:
+        content = pagespeedurls.readlines()
+        content = [line.rstrip('\n') for line in content]
+
+    for line in content:
+        try:
+            print(f"Running Desktop for {line}")
+            api_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+            params = {
+                "url": line,
+                "key": api_key,
+                "strategy": "desktop",
+                "category": ['performance','seo','best-practices','accessibility']
+            }
+            req = requests.get(api_url, params=params)
+
+            if req.status_code == 200:
+                json_data = req.json()
+
+                # Extract relevant metrics
+                performance = str(round(json_data["lighthouseResult"]["categories"]["performance"]["score"] * 100))
+                accessibility = str(round(json_data["lighthouseResult"]["categories"]["accessibility"]["score"] * 100))
+                best_practices = str(round(json_data["lighthouseResult"]["categories"]["best-practices"]["score"] * 100))
+                seo = str(round(json_data["lighthouseResult"]["categories"]["seo"]["score"] * 100))
+                server_response = str(json_data["lighthouseResult"]["audits"]["server-response-time"]["numericValue"])
+                redirects = str(json_data["lighthouseResult"]["audits"]["redirects"]["numericValue"])
+                offscreen_images = str(json_data["lighthouseResult"]["audits"]["offscreen-images"]["numericValue"])
+                unused_javascript = str(json_data["lighthouseResult"]["audits"]["unused-javascript"]["numericValue"])
+                use_optimized_images = str(json_data["lighthouseResult"]["audits"]["uses-optimized-images"]["numericValue"])
+
+                # Add data to the DataFrame
+                dict_desktop = {
+                    "URL": line,
+                    "Desktop Performance": performance,
+                    "Accessibility": accessibility,
+                    "Best Practices": best_practices,
+                    "SEO": seo,
+                    "Server Response Time (ms)": server_response,
+                    "Redirects (ms)": redirects,
+                    "Offscreen Images (ms)": offscreen_images,
+                    "Unused Javascript (ms)": unused_javascript,
+                    "Uses Optimized Images (ms)": use_optimized_images
+                }
+                df_desktop = df_desktop._append(dict_desktop, ignore_index=True)
+            else:
+                print(f"Error {req.status_code} for {line}: {req.reason}")
+
+        except Exception as e:
+            print(f"Error processing desktop for {line}: {e}")
+            continue
+
+    df_desktop.to_csv(f"{desktop_csv_directory}/{name}_{getdate}.csv", index=False)
+    print("All desktop data saved to CSV.")
+
+# Main Script
+file_path, mobile_csv_directory, desktop_csv_directory = get_user_inputs()
+
+# Start threads for mobile and desktop processing
+mobile_thread = threading.Thread(target=process_mobile, args=(file_path, mobile_csv_directory))
+desktop_thread = threading.Thread(target=process_desktop, args=(file_path, desktop_csv_directory))
+
+mobile_thread.start()
+desktop_thread.start()
+
+mobile_thread.join()
+desktop_thread.join()
+
+print("Processing completed for both mobile and desktop!")
+messagebox.showinfo("Runs Complete!", "Runs Complete")
