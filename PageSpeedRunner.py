@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox
 import threading
 
 # API Key
-api_key = "AIzaSyCzd4hGQ3B0uKtZVpoebtN0Kqf14CkTrMo"
+api_key = "INSERT KEY HERE"
 
 # Tkinter Input Handling (Main Thread Only)
 def get_user_inputs():
